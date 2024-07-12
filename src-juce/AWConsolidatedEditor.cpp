@@ -628,8 +628,9 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
         jogUp = b.withHeight(hh).withTrimmedLeft(b.getWidth() - hh);
         jogDown = jogUp.translated(0, hh);
 
+        
         auto hbSize{22};
-        auto heartPos = jogUp.translated(-hbSize - 1, hh / 2)
+        auto heartPos = jogUp.translated(-hbSize - 1, -2)
                             .withWidth(hh)
                             .withHeight(hh)
                             .expanded((hbSize - hh) / 2);
@@ -638,10 +639,8 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
         down->setBounds(jogDown);
         heartButton->setBounds(heartPos);
 
-        auto dicePos = heartPos.translated(-hbSize - 1, hh / 2)
-                           .withWidth(hh)
-                           .withHeight(hh)
-                           .expanded((hbSize - hh) / 2);
+        auto dicePos =
+            heartPos.translated(0, hh + 3).withWidth(hh).withHeight(hh).expanded((hbSize - hh) / 2);
         diceButton->setBounds(dicePos);
 
         auto bx = getLocalBounds().reduced(8, 16);
