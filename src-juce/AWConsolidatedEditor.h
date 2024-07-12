@@ -3,6 +3,7 @@
 
 #include "AWConsolidatedProcessor.h"
 #include "juce_gui_basics/juce_gui_basics.h"
+#include <random>
 
 //==============================================================================
 /**
@@ -193,7 +194,7 @@ class AWConsolidatedAudioProcessorEditor : public juce::AudioProcessorEditor,
     void unstreamFavorites();
     juce::File getFavoritesFile(bool makeDir) const;
     std::set<std::string> favoritesList{};
-
+    
   private:
     enum PostRebuidFocusTargetIs
     {

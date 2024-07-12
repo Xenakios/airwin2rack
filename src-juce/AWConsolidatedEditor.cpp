@@ -11,6 +11,67 @@
 CMRC_DECLARE(awconsolidated_resources);
 namespace awres = cmrc::awconsolidated_resources;
 
+class AWParamRandomizer
+{
+  public:
+    std::unordered_map<int, std::string> modesmap;
+    AWParamRandomizer(int seed) : rng(seed)
+    {
+        bncurval = dist(rng);
+        modesmap[0] = "Fully random";
+        modesmap[1] = "Blue random minimum depth";
+        modesmap[2] = "Blue random medium depth";
+        modesmap[3] = "Blue random high depth";
+        modesmap[4] = "Random walk minimum depth";
+        modesmap[5] = "Random walk medium depth";
+        modesmap[6] = "Random walk high depth";
+    }
+    float getNextValue(float curval, float minval, float maxval, int mode = 0)
+    {
+        if (mode == 0)
+        {
+            return dist(rng);
+        }
+        if (mode >= 1 && mode <= 3)
+        {
+            int bndepths[3] = {2, 5, 10};
+            int bndepth = bndepths[mode - 1];
+            float furthest = 0.0f;
+            float maxdist = 0.0f;
+            for (int i = 0; i < bndepth; ++i)
+            {
+                float z = dist(rng);
+                float distance = std::abs(bncurval - z);
+                if (distance > maxdist)
+                {
+                    maxdist = distance;
+                    furthest = z;
+                }
+            }
+            bncurval = furthest;
+            return bncurval;
+        }
+        if (mode >= 4 && mode <= 6)
+        {
+            float rwalkstrengths[3] = {0.01f, 0.05f, 0.15f};
+            float rwalkstrength = rwalkstrengths[mode - 4];
+            float rdelta = gaussdist(rng) * rwalkstrength;
+            curval += rdelta;
+            // reflecting off the limits would be more interesting than clamping
+            curval = std::clamp(curval, minval, maxval);
+        }
+
+        return curval;
+    }
+
+  private:
+    std::minstd_rand0 rng;
+    std::uniform_real_distribution<float> dist{0.0f, 1.0f};
+    std::normal_distribution<float> gaussdist{0.0f, 1.0f};
+    // for blue noise generation
+    float bncurval = 0.0f;
+};
+
 AWLookAndFeel::AWLookAndFeel()
 {
     setToSystemTheme();
@@ -290,11 +351,11 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
     };
     std::unique_ptr<Jog> up, down;
 
-
     struct Heart : juce::ToggleButton, juce::ToggleButton::Listener
     {
         Picker *picker;
-        Heart(Picker *p) : juce::ToggleButton("Favorite"), picker(p) {
+        Heart(Picker *p) : juce::ToggleButton("Favorite"), picker(p)
+        {
             setAccessible(true);
             addListener(this); // i know its a bit sloppy to self listen
         }
@@ -309,11 +370,11 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
             auto p = juce::Path();
 
             auto afac{1.25};
-            p.addCentredArc(w/4, h/3, w/4, h/4, 0, -afac * M_PI / 2, -M_PI/2, true);
-            p.addCentredArc(w/4, h/3, w/4, h/3, 0, -M_PI / 2, M_PI/2, false);
-            p.addCentredArc(3*w/4, h/3, w/4, h/3, 0, -M_PI / 2,M_PI/2, false);
-            p.addCentredArc(3*w/4, h/3, w/4, h/4, 0, M_PI / 2, afac * M_PI/2, false);
-            p.lineTo(w/2, h);
+            p.addCentredArc(w / 4, h / 3, w / 4, h / 4, 0, -afac * M_PI / 2, -M_PI / 2, true);
+            p.addCentredArc(w / 4, h / 3, w / 4, h / 3, 0, -M_PI / 2, M_PI / 2, false);
+            p.addCentredArc(3 * w / 4, h / 3, w / 4, h / 3, 0, -M_PI / 2, M_PI / 2, false);
+            p.addCentredArc(3 * w / 4, h / 3, w / 4, h / 4, 0, M_PI / 2, afac * M_PI / 2, false);
+            p.lineTo(w / 2, h);
             p.closeSubPath();
 
             if (getToggleState())
@@ -498,7 +559,10 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
         jogDown = jogUp.translated(0, hh);
 
         auto hbSize{22};
-        auto heartPos = jogUp.translated(-hbSize - 1, hh/2).withWidth(hh).withHeight(hh).expanded((hbSize-hh)/2);
+        auto heartPos = jogUp.translated(-hbSize - 1, hh / 2)
+                            .withWidth(hh)
+                            .withHeight(hh)
+                            .expanded((hbSize - hh) / 2);
 
         up->setBounds(jogUp);
         down->setBounds(jogDown);
@@ -622,7 +686,8 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
             down->getAccessibilityHandler()->notifyAccessibilityEvent(
                 juce::AccessibilityEvent::titleChanged);
 
-        heartButton->setToggleState(isCurrentEffectFavorite(), juce::NotificationType::dontSendNotification);
+        heartButton->setToggleState(isCurrentEffectFavorite(),
+                                    juce::NotificationType::dontSendNotification);
         auto coll = editor->getCurrentCollection();
         if (coll == editor->favoritesCollection)
         {
@@ -1069,9 +1134,10 @@ struct ParamKnob : juce::Component
     int index{0};
     bool showValueBelow{false};
     std::string showValuePrefix{};
+    AWParamRandomizer randomizer;
     ParamKnob(const juce::String &cn, AWConsolidatedAudioProcessor::APFPublicDefault *param,
               const std::atomic<bool> &a, AWConsolidatedAudioProcessorEditor *ed, int idx)
-        : juce::Component(cn), weakParam{param}, active{a}, editor{ed}, index{idx}
+        : juce::Component(cn), weakParam{param}, active{a}, editor{ed}, index{idx}, randomizer{idx}
     {
         refreshModel();
     }
@@ -1317,6 +1383,22 @@ struct ParamKnob : juce::Component
             setValue(weakParam->getDefaultValue());
             repaint();
         }
+    }
+
+    void randomize(int rndmode = 0)
+    {
+        if (!weakParam || !isEnabled())
+            return;
+
+        auto minval = weakParam->getNormalisableRange().start;
+        auto maxval = weakParam->getNormalisableRange().end;
+        float newval = randomizer.getNextValue(getValue(), minval, maxval, rndmode);
+        weakParam->beginChangeGesture();
+        weakParam->setValueNotifyingHost(newval);
+        weakParam->endChangeGesture();
+        if (getAccessibilityHandler())
+            getAccessibilityHandler()->notifyAccessibilityEvent(
+                juce::AccessibilityEvent::valueChanged);
     }
 
     std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override
@@ -1770,14 +1852,14 @@ void AWConsolidatedAudioProcessorEditor::jog(int dir)
         }
         auto nidx = idx + dir;
         if (nidx < 0)
-            nidx = v.size()-1;
+            nidx = v.size() - 1;
         if (nidx >= (int)v.size())
             nidx = 0;
         auto nfidx = AirwinRegistry::nameToIndex[v[nidx]];
         processor.pushResetTypeFromUI(nfidx);
     }
-    else if (coll == allCollection ||
-        AirwinRegistry::namesByCollection.find(coll) == AirwinRegistry::namesByCollection.end())
+    else if (coll == allCollection || AirwinRegistry::namesByCollection.find(coll) ==
+                                          AirwinRegistry::namesByCollection.end())
     {
         auto nx = AirwinRegistry::neighborIndexFor(processor.curentProcessorIndex, dir);
         processor.pushResetTypeFromUI(nx);
@@ -1826,13 +1908,15 @@ void AWConsolidatedAudioProcessorEditor::showEffectsMenu(bool justCurrentCategor
             {
                 auto ig = AirwinRegistry::registry[n2i->second];
 
-                sm.addItem(f + " (" + ig.category + ")", true, f == ent.name, [f, w = juce::Component::SafePointer(this)]() {
-                    if (w)
-                    {
-                        w->postRebuildFocus = PICKER_MENU;
-                        w->processor.pushResetTypeFromUI(AirwinRegistry::nameToIndex.at(f));
-                    }
-                });
+                sm.addItem(f + " (" + ig.category + ")", true, f == ent.name,
+                           [f, w = juce::Component::SafePointer(this)]() {
+                               if (w)
+                               {
+                                   w->postRebuildFocus = PICKER_MENU;
+                                   w->processor.pushResetTypeFromUI(
+                                       AirwinRegistry::nameToIndex.at(f));
+                               }
+                           });
             }
         }
         p.addSubMenu("Favorites", sm);
@@ -1857,7 +1941,6 @@ void AWConsolidatedAudioProcessorEditor::showEffectsMenu(bool justCurrentCategor
                                  return;
                              w->setCurrentCollection(w->favoritesCollection);
                          });
-
     }
     collMenu.addItem("All Plugins", true, ccoll == allCollection,
                      [w = juce::Component::SafePointer(this)]() {
@@ -1929,7 +2012,6 @@ void AWConsolidatedAudioProcessorEditor::showEffectsMenu(bool justCurrentCategor
         juce::URL("https://github.com/baconpaul/airwin2rack/blob/main/doc/manualdaw.md")
             .launchInDefaultBrowser();
     });
-
 
     const auto mousePos = juce::Desktop::getInstance().getMousePosition();
     const auto targetArea = juce::Rectangle<int>{}.withPosition(mousePos);
@@ -2056,6 +2138,29 @@ juce::PopupMenu AWConsolidatedAudioProcessorEditor::makeSettingsMenu(bool withHe
 
         settingsMenu.addSubMenu("About", about);
     }
+
+    juce::PopupMenu randommodemenu;
+    static int randmode = 0;
+    juce::StringArray rndmodes;
+    rndmodes.add("Fully random");
+    rndmodes.add("Blue random low depth");
+    rndmodes.add("Blue random medium depth");
+    rndmodes.add("Blue random high depth");
+    rndmodes.add("Random walk low depth");
+    rndmodes.add("Random walk medium depth");
+    rndmodes.add("Random walk high depth");
+    for (size_t i = 0; i < rndmodes.size(); ++i)
+    {
+        randommodemenu.addItem(rndmodes[i], true, i == randmode, [i]() { randmode = i; });
+    }
+    settingsMenu.addSubMenu("Randomize mode", randommodemenu);
+    settingsMenu.addItem("Randomize FX parameters", [this]() {
+        for (auto &k : knobs)
+        {
+            k->randomize(randmode);
+        }
+    });
+
     return settingsMenu;
 }
 
@@ -2075,10 +2180,7 @@ struct FxFocusTrav : public juce::ComponentTraverser
             return nullptr;
         }
 
-        auto isAccessibleAndVisible = [](auto *r)
-        {
-            return r->isAccessible() && r->isVisible();
-        };
+        auto isAccessibleAndVisible = [](auto *r) { return r->isAccessible() && r->isVisible(); };
 
         switch (dir)
         {
@@ -2285,7 +2387,6 @@ void AWConsolidatedAudioProcessorEditor::addCurrentAsFavorite()
     streamFavorites();
 }
 
-
 void AWConsolidatedAudioProcessorEditor::removeCurrentAsFavorite()
 {
     int idx = processor.curentProcessorIndex;
@@ -2301,7 +2402,7 @@ void AWConsolidatedAudioProcessorEditor::streamFavorites()
 
     auto favx = juce::XmlElement("awfavorites");
 
-    for (const auto & f : favoritesList)
+    for (const auto &f : favoritesList)
     {
         auto el = new juce::XmlElement("favorite");
         el->setAttribute("fx", f);
