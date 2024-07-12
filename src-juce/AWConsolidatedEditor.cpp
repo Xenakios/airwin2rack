@@ -413,6 +413,73 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
     };
     std::unique_ptr<Heart> heartButton;
 
+    struct Dice : juce::Button
+    {
+        Picker *picker = nullptr;
+        Dice(Picker *p) : juce::Button("Randomize parameters"), picker(p) { setAccessible(true); }
+
+        void mouseUp(const juce::MouseEvent &ev) override
+        {
+            if (ev.mods.isLeftButtonDown())
+            {
+                picker->editor->randomizeParameters();
+            }
+            if (ev.mods.isRightButtonDown())
+            {
+                juce::PopupMenu randommodemenu;
+                int randmode = picker->editor->processor.paramRandomizerMode;
+                juce::StringArray rndmodes = AWParamRandomizer::getModeStrings();
+
+                for (size_t i = 0; i < rndmodes.size(); ++i)
+                {
+                    randommodemenu.addItem(
+                        rndmodes[i], true, i == randmode,
+                        [i, w = juce::Component::SafePointer(this)]() {
+                            if (w)
+                            {
+                                w->picker->editor->processor.paramRandomizerMode = i;
+                            }
+                        });
+                }
+                randommodemenu.showMenuAsync(juce::PopupMenu::Options());
+            }
+            juce::Button::mouseUp(ev);
+        }
+        void paintButton(juce::Graphics &g, bool shouldDrawButtonAsHighlighted,
+                         bool shouldDrawButtonAsDown) override
+        {
+            auto gs = juce::Graphics::ScopedSaveState(g);
+            float w = getWidth();
+            float h = getHeight();
+            if (isHovered)
+                g.setColour(findColour(ColourIds::jogHovered));
+            else
+                g.setColour(findColour(ColourIds::jog));
+            // g.setColour(findColour(jogStroke));
+            g.drawRect(0.0f, 0.0f, w, h);
+            float eyeSize = 6.0f;
+            g.fillEllipse(2.0f, 2.0f, eyeSize, eyeSize);
+            g.fillEllipse(w - 2.0f - eyeSize, 2.0f, eyeSize, eyeSize);
+            g.fillEllipse(w / 2.0f - eyeSize / 2.0f, h / 2.0 - eyeSize / 2.0f, eyeSize, eyeSize);
+            g.fillEllipse(2.0f, h - 2.0f - eyeSize, eyeSize, eyeSize);
+            g.fillEllipse(w - 2.0f - eyeSize, h - 2.0f - eyeSize, eyeSize, eyeSize);
+        }
+
+        bool isHovered{false};
+        void mouseEnter(const juce::MouseEvent &) override
+        {
+            isHovered = true;
+            repaint();
+        }
+        void mouseExit(const juce::MouseEvent &) override
+        {
+            isHovered = false;
+            repaint();
+        }
+    };
+
+    std::unique_ptr<Dice> diceButton;
+
     struct Hamburger : juce::Button
     {
         Picker *picker;
@@ -484,11 +551,13 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
         down = std::make_unique<Jog>(this, 1);
         hamburger = std::make_unique<Hamburger>(this);
         heartButton = std::make_unique<Heart>(this);
+        diceButton = std::make_unique<Dice>(this);
 
         addAndMakeVisible(*up);
         addAndMakeVisible(*down);
         addAndMakeVisible(*hamburger);
         addAndMakeVisible(*heartButton);
+        addAndMakeVisible(*diceButton);
 
         typeinEd = std::make_unique<juce::TextEditor>("Typeahead");
         typeinEd->addListener(this);
@@ -568,6 +637,12 @@ struct Picker : public juce::Component, public juce::TextEditor::Listener
         up->setBounds(jogUp);
         down->setBounds(jogDown);
         heartButton->setBounds(heartPos);
+
+        auto dicePos = heartPos.translated(-hbSize - 1, hh / 2)
+                           .withWidth(hh)
+                           .withHeight(hh)
+                           .expanded((hbSize - hh) / 2);
+        diceButton->setBounds(dicePos);
 
         auto bx = getLocalBounds().reduced(8, 16);
         bx = bx.withWidth(bx.getHeight());
@@ -2140,31 +2215,6 @@ juce::PopupMenu AWConsolidatedAudioProcessorEditor::makeSettingsMenu(bool withHe
         settingsMenu.addSubMenu("About", about);
     }
 
-    juce::PopupMenu randommodemenu;
-    int randmode = processor.paramRandomizerMode;
-    juce::StringArray rndmodes = AWParamRandomizer::getModeStrings();
-
-    for (size_t i = 0; i < rndmodes.size(); ++i)
-    {
-        randommodemenu.addItem(rndmodes[i], true, i == randmode,
-                               [i, w = juce::Component::SafePointer(this)]() {
-                                   if (w)
-                                   {
-                                       w->processor.paramRandomizerMode = i;
-                                   }
-                               });
-    }
-    settingsMenu.addSubMenu("Randomize mode", randommodemenu);
-    settingsMenu.addItem("Randomize FX parameters", [w = juce::Component::SafePointer(this)]() {
-        if (w)
-        {
-            for (auto &k : w->knobs)
-            {
-                k->randomize(w->processor.paramRandomizerMode);
-            }
-        }
-    });
-
     return settingsMenu;
 }
 
@@ -2233,6 +2283,14 @@ struct FxFocusTrav : public juce::ComponentTraverser
     AWConsolidatedAudioProcessorEditor *editor{nullptr};
 };
 
+void AWConsolidatedAudioProcessorEditor::randomizeParameters()
+{
+    for (auto &k : knobs)
+    {
+        k->randomize(processor.paramRandomizerMode);
+    }
+}
+
 bool AWConsolidatedAudioProcessorEditor::keyPressed(const juce::KeyPress &k)
 {
     if (k.getKeyCode() == juce::KeyPress::F7Key)
@@ -2250,7 +2308,11 @@ bool AWConsolidatedAudioProcessorEditor::keyPressed(const juce::KeyPress &k)
                 juce::String() + "Accessible Documentation Component is " + (!isRO ? "Off" : "On"),
                 juce::AccessibilityHandler::AnnouncementPriority::medium);
     }
-
+    if (k.getKeyCode() == juce::KeyPress::F4Key)
+    {
+        randomizeParameters();
+        return true;
+    }
     return false;
 }
 

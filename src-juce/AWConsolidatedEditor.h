@@ -194,7 +194,8 @@ class AWConsolidatedAudioProcessorEditor : public juce::AudioProcessorEditor,
     void unstreamFavorites();
     juce::File getFavoritesFile(bool makeDir) const;
     std::set<std::string> favoritesList{};
-    
+    void randomizeParameters();
+
   private:
     enum PostRebuidFocusTargetIs
     {
