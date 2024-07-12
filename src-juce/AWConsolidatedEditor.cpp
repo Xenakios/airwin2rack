@@ -14,18 +14,19 @@ namespace awres = cmrc::awconsolidated_resources;
 class AWParamRandomizer
 {
   public:
-    std::unordered_map<int, std::string> modesmap;
-    AWParamRandomizer(int seed) : rng(seed)
+    static juce::StringArray getModeStrings()
     {
-        bncurval = dist(rng);
-        modesmap[0] = "Fully random";
-        modesmap[1] = "Blue random minimum depth";
-        modesmap[2] = "Blue random medium depth";
-        modesmap[3] = "Blue random high depth";
-        modesmap[4] = "Random walk minimum depth";
-        modesmap[5] = "Random walk medium depth";
-        modesmap[6] = "Random walk high depth";
+        juce::StringArray modestrings;
+        modestrings.add("Fully random");
+        modestrings.add("Blue random minimum depth");
+        modestrings.add("Blue random medium depth");
+        modestrings.add("Blue random high depth");
+        modestrings.add("Random walk minimum depth");
+        modestrings.add("Random walk medium depth");
+        modestrings.add("Random walk high depth");
+        return modestrings;
     }
+    AWParamRandomizer(int seed) : rng(seed) { bncurval = dist(rng); }
     float getNextValue(float curval, float minval, float maxval, int mode = 0)
     {
         if (mode == 0)
@@ -2140,24 +2141,27 @@ juce::PopupMenu AWConsolidatedAudioProcessorEditor::makeSettingsMenu(bool withHe
     }
 
     juce::PopupMenu randommodemenu;
-    static int randmode = 0;
-    juce::StringArray rndmodes;
-    rndmodes.add("Fully random");
-    rndmodes.add("Blue random low depth");
-    rndmodes.add("Blue random medium depth");
-    rndmodes.add("Blue random high depth");
-    rndmodes.add("Random walk low depth");
-    rndmodes.add("Random walk medium depth");
-    rndmodes.add("Random walk high depth");
+    int randmode = processor.paramRandomizerMode;
+    juce::StringArray rndmodes = AWParamRandomizer::getModeStrings();
+
     for (size_t i = 0; i < rndmodes.size(); ++i)
     {
-        randommodemenu.addItem(rndmodes[i], true, i == randmode, [i]() { randmode = i; });
+        randommodemenu.addItem(rndmodes[i], true, i == randmode,
+                               [i, w = juce::Component::SafePointer(this)]() {
+                                   if (w)
+                                   {
+                                       w->processor.paramRandomizerMode = i;
+                                   }
+                               });
     }
     settingsMenu.addSubMenu("Randomize mode", randommodemenu);
-    settingsMenu.addItem("Randomize FX parameters", [this]() {
-        for (auto &k : knobs)
+    settingsMenu.addItem("Randomize FX parameters", [w = juce::Component::SafePointer(this)]() {
+        if (w)
         {
-            k->randomize(randmode);
+            for (auto &k : w->knobs)
+            {
+                k->randomize(w->processor.paramRandomizerMode);
+            }
         }
     });
 

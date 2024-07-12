@@ -393,6 +393,7 @@ void AWConsolidatedAudioProcessor::getStateInformation(juce::MemoryBlock &destDa
     xml->setAttribute("streamingVersion", (int)8524);
 
     xml->setAttribute("currentProcessorName", AirwinRegistry::registry[curentProcessorIndex].name);
+    xml->setAttribute("parameterRandomizerMode", paramRandomizerMode);
     for (int i = 0; i < nAWParams; ++i)
     {
         juce::String nm = juce::String("awp_") + std::to_string(i);
@@ -423,6 +424,8 @@ void AWConsolidatedAudioProcessor::setStateInformation(const void *data, int siz
             {
                 setAWProcessorTo(AirwinRegistry::nameToIndex.at(effectName.toStdString()), true);
             }
+
+            paramRandomizerMode = xmlState->getIntAttribute("parameterRandomizerMode");
 
             for (int i = 0; i < nAWParams; ++i)
             {
